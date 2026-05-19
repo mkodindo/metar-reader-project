@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lecteur METAR</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 2rem 1rem 4rem;
+    }
+
+    .container { max-width: 780px; margin: 0 auto; }
+
+    /* Header */
+    header { text-align: center; margin-bottom: 2.5rem; }
+    header h1 { font-size: 2rem; font-weight: 700; color: #7dd3fc; letter-spacing: -0.02em; }
+    header p  { color: #64748b; font-size: 0.9rem; margin-top: 0.4rem; }
+
+    /* Search */
+    .search-card {
+      background: #1e293b;
+      border-radius: 14px;
+      padding: 1.5rem;
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid #334155;
+    }
+
+    .input-wrap { position: relative; }
+    .input-wrap label {
+      position: absolute;
+      top: -0.6rem; left: 0.75rem;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #7dd3fc;
+      background: #1e293b;
+      padding: 0 0.25rem;
+    }
+
+    input[type="text"] {
+      padding: 0.75rem 1rem;
+      border: 2px solid #334155;
+      border-radius: 9px;
+      background: #0f172a;
+      color: #f1f5f9;
+      font-size: 1.15rem;
+      font-weight: 600;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      width: 150px;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    input[type="text"]:focus {
+      border-color: #7dd3fc;
+      box-shadow: 0 0 0 3px rgba(125, 211, 252, 0.15);
+    }
+    input[type="text"]::placeholder { color: #475569; letter-spacing: 0.1em; }
+
+    button[type="submit"] {
+      padding: 0.75rem 1.75rem;
+      background: linear-gradient(135deg, #0284c7, #0369a1);
+      color: white;
+      border: none;
+      border-radius: 9px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+      white-space: nowrap;
+    }
+    button[type="submit"]:hover  { opacity: 0.9; }
+    button[type="submit"]:active { transform: scale(0.97); }
+
+    .hint {
+      width: 100%;
+      text-align: center;
+      font-size: 0.8rem;
+      color: #475569;
+      margin-top: 0.25rem;
+    }
+    .hint code {
+      color: #94a3b8;
+      background: #0f172a;
+      border-radius: 4px;
+      padding: 0.1em 0.35em;
+      font-size: 0.85em;
+    }
+
+    /* Error */
+    .error-box {
+      background: #1c0a0a;
+      border: 1px solid #7f1d1d;
+      color: #fca5a5;
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      margin-top: 1.5rem;
+      display: flex;
+      gap: 0.6rem;
+      align-items: flex-start;
+    }
+    .error-box .err-icon { font-size: 1.1rem; flex-shrink: 0; }
+
+    /* Raw METAR */
+    .raw-section { margin-top: 1.75rem; }
+    .section-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #475569;
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+    }
+    code.metar-raw {
+      display: block;
+      background: #0a1628;
+      border: 1px solid #1e3a5f;
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      font-family: "Courier New", "Consolas", monospace;
+      font-size: 0.95rem;
+      color: #67e8f9;
+      word-break: break-all;
+      letter-spacing: 0.06em;
+      line-height: 1.6;
+    }
+
+    /* Summary card */
+    .summary-card {
+      margin-top: 1.25rem;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 14px;
+      padding: 1.5rem;
+      display: flex;
+      gap: 1.25rem;
+      align-items: flex-start;
+    }
+    .weather-icon {
+      font-size: 3.5rem;
+      line-height: 1;
+      flex-shrink: 0;
+      filter: drop-shadow(0 2px 6px rgba(0,0,0,0.4));
+    }
+    .summary-meta h2 {
+      font-size: 1.2rem;
+      color: #f1f5f9;
+      font-weight: 700;
+      margin-bottom: 0.2rem;
+    }
+    .summary-meta .time {
+      font-size: 0.8rem;
+      color: #64748b;
+      margin-bottom: 0.75rem;
+    }
+    .summary-meta p {
+      color: #94a3b8;
+      line-height: 1.65;
+      font-size: 0.95rem;
+    }
+    .auto-badge {
+      display: inline-block;
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      background: #334155;
+      color: #94a3b8;
+      border-radius: 4px;
+      padding: 0.15em 0.5em;
+      margin-left: 0.5rem;
+      vertical-align: middle;
+    }
+
+    /* Decoded grid */
+    .decoded-grid {
+      margin-top: 1.25rem;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 0.875rem;
+    }
+    .field-card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 11px;
+      padding: 1rem 1.1rem;
+      transition: border-color 0.2s;
+    }
+    .field-card:hover { border-color: #4b6a8a; }
+    .field-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #64748b;
+      margin-bottom: 0.4rem;
+      font-weight: 600;
+    }
+    .field-value {
+      font-size: 0.92rem;
+      color: #e2e8f0;
+      font-weight: 500;
+      line-height: 1.5;
+    }
+    .field-raw {
+      font-size: 0.72rem;
+      color: #475569;
+      font-family: monospace;
+      margin-top: 0.3rem;
+    }
+    .cloud-item, .phenom-item {
+      font-size: 0.9rem;
+      color: #cbd5e1;
+      margin-bottom: 0.2rem;
+    }
+
+    /* Trend */
+    .trend-box {
+      margin-top: 1rem;
+      background: #0c1a2e;
+      border-left: 3px solid #0284c7;
+      border-radius: 0 10px 10px 0;
+      padding: 0.75rem 1.1rem;
+      color: #7dd3fc;
+      font-size: 0.9rem;
+    }
+
+    /* Footer */
+    footer {
+      margin-top: 3rem;
+      text-align: center;
+      font-size: 0.75rem;
+      color: #334155;
+    }
+    footer a { color: #475569; text-decoration: none; }
+    footer a:hover { color: #64748b; }
+
+    /* Responsive */
+    @media (max-width: 520px) {
+      header h1 { font-size: 1.6rem; }
+      .summary-card { flex-direction: column; }
+      .weather-icon { font-size: 2.5rem; }
+      .decoded-grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 360px) {
+      .decoded-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <header>
+      <h1>✈️ Lecteur METAR</h1>
+      <p>Décodage des bulletins météo aéronautiques en français</p>
+    </header>
+
+    <form class="search-card" method="POST" action="/">
+      <div class="input-wrap">
+        <label for="icao">Code ICAO</label>
+        <input
+          type="text"
+          name="icao"
+          id="icao"
+          placeholder="LFPO"
+          maxlength="4"
+          value="{{ icao_input }}"
+          autocomplete="off"
+          spellcheck="false"
+          autofocus
+          aria-label="Code ICAO de l'aéroport"
+        >
+      </div>
+      <button type="submit">🔍 Décoder</button>
+      <p class="hint">
+        Exemples : <code>LFPO</code> (Orly) &nbsp;·&nbsp; <code>LFPG</code> (CDG) &nbsp;·&nbsp; <code>KJFK</code> (New York) &nbsp;·&nbsp; <code>EGLL</code> (Londres)
+      </p>
+    </form>
+
+    {% if error %}
+    <div class="error-box" role="alert">
+      <span class="err-icon">⚠️</span>
+      <span>{{ error }}</span>
+    </div>
+    {% endif %}
+
+    {% if result %}
+
+    <div class="raw-section">
+      <p class="section-label">METAR brut</p>
+      <code class="metar-raw">{{ result.raw }}</code>
+    </div>
+
+    <div class="summary-card">
+      <div class="weather-icon">{{ result.icon }}</div>
+      <div class="summary-meta">
+        <h2>
+          {{ result.station }}
+          {% if result.auto %}<span class="auto-badge">AUTO</span>{% endif %}
+        </h2>
+        {% if result.time_utc %}
+        <p class="time">Relevé {{ result.time_utc.fr }}</p>
+        {% endif %}
+        <p>{{ result.summary }}</p>
+      </div>
+    </div>
+
+    <div class="decoded-grid">
+
+      {% if result.wind %}
+      <div class="field-card">
+        <div class="field-label">💨 Vent</div>
+        <div class="field-value">{{ result.wind.fr }}</div>
+        <div class="field-raw">{{ result.wind.raw }}</div>
+      </div>
+      {% endif %}
+
+      {% if result.visibility %}
+      <div class="field-card">
+        <div class="field-label">👁️ Visibilité</div>
+        <div class="field-value">{{ result.visibility.fr }}</div>
+        <div class="field-raw">{{ result.visibility.raw }}</div>
+      </div>
+      {% endif %}
+
+      {% if result.temperature is not none %}
+      <div class="field-card">
+        <div class="field-label">🌡️ Température</div>
+        <div class="field-value">{{ result.temperature }}°C</div>
+        {% if result.dewpoint is not none %}
+        <div class="field-raw">Point de rosée : {{ result.dewpoint }}°C</div>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      {% if result.pressure %}
+      <div class="field-card">
+        <div class="field-label">⏱️ Pression</div>
+        <div class="field-value">{{ result.pressure.fr }}</div>
+        <div class="field-raw">{{ result.pressure.raw }}</div>
+      </div>
+      {% endif %}
+
+      {% if result.clouds %}
+      <div class="field-card">
+        <div class="field-label">☁️ Nuages</div>
+        {% for cl in result.clouds %}
+        <div class="cloud-item">{{ cl.fr }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% if result.cavok %}
+      <div class="field-card">
+        <div class="field-label">✅ CAVOK</div>
+        <div class="field-value">Conditions optimales</div>
+        <div class="field-raw">Vis ≥ 10 km · Pas de nuages significatifs</div>
+      </div>
+      {% endif %}
+
+      {% if result.phenomena %}
+      <div class="field-card">
+        <div class="field-label">🌦️ Phénomènes</div>
+        {% for ph in result.phenomena %}
+        <div class="phenom-item">{{ ph.fr }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+    </div>
+
+    {% if result.trend %}
+    <div class="trend-box">
+      📈 <strong>Tendance :</strong> {{ result.trend }}
+    </div>
+    {% endif %}
+
+    {% endif %}
+
+    <footer>
+      <p>Source : <a href="https://aviationweather.gov" target="_blank" rel="noopener">aviationweather.gov</a> · Données en temps réel</p>
+    </footer>
+
+  </div>
+
+  <script>
+    const input = document.getElementById('icao');
+    input.addEventListener('input', () => {
+      const pos = input.selectionStart;
+      input.value = input.value.toUpperCase();
+      input.setSelectionRange(pos, pos);
+    });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') e.target.closest('form').submit();
+    });
+  </script>
+</body>
+</html>
