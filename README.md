@@ -150,6 +150,28 @@ curl http://127.0.0.1:5000/api/metar/LFPO
 
 ---
 
+## Tests
+
+La suite de tests utilise **pytest** et couvre les deux modules sans effectuer aucun appel réseau réel.
+
+### Lancer les tests
+
+```bash
+# Depuis la racine du projet, avec le venv activé
+pytest tests/ -v
+```
+
+### Couverture
+
+| Fichier de test | Périmètre |
+|---|---|
+| `tests/test_metar_parser.py` | Toutes les fonctions de `metar_parser.py` (parsing vent, visibilité, nuages, phénomènes, température, pression, tendance, icône, résumé, intégration `parse_metar`) |
+| `tests/test_app.py` | Validation ICAO, routes `GET /`, `POST /` et `GET /api/metar/<code>` — appels à `fetch_metar` remplacés par des mocks |
+
+96 tests au total.
+
+---
+
 ## Structure du projet
 
 ```
@@ -157,6 +179,9 @@ Metar-reader/
 ├── app.py              # Application Flask (routes, validation, récupération)
 ├── metar_parser.py     # Décodeur METAR complet
 ├── requirements.txt    # Dépendances Python
+├── tests/
+│   ├── test_metar_parser.py  # Tests unitaires du parser
+│   └── test_app.py           # Tests des routes Flask
 └── templates/
     └── index.html      # Interface web (dark-mode, CSS embarqué)
 ```
